@@ -33,6 +33,8 @@ export default function ImportEbirdCsv({ onImported }: { onImported?: () => void
           date: r['Date'] ?? '',
           time: r['Time'] ?? '',
           count: r['Count'] ?? '',
+          lat: r['Latitude'] ?? '',
+          lng: r['Longitude'] ?? '',
         })).filter((r) => r.scientificName && r.date);
 
         if (rows.length === 0) {

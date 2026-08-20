@@ -9,6 +9,7 @@ import SpeciesDetailPage from './components/SpeciesDetailPage';
 import BadgesPage from './components/BadgesPage';
 import AlertSettings from './components/AlertSettings';
 import Logbook from './components/Logbook';
+import SightingDetailPage from './components/SightingDetailPage';
 import Header from './components/Header';
 import BottomNav from './components/BottomNav';
 
@@ -49,6 +50,7 @@ function App() {
             <Route path="/soorten/:id" element={<SpeciesDetailPage />} />
             <Route path="/badges" element={<BadgesPage />} />
             <Route path="/logboek" element={<Logbook />} />
+            <Route path="/logboek/:id" element={<SightingDetailPage />} />
             <Route path="/instellingen" element={<AlertSettings />} />
           </Routes>
         </main>
