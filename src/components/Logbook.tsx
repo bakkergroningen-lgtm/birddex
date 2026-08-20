@@ -62,11 +62,20 @@ export default function Logbook() {
   }
 
   function useMyLocation() {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition((pos) => {
-      setLat(pos.coords.latitude);
-      setLng(pos.coords.longitude);
-    });
+    if (!navigator.geolocation) {
+      setMessage('Locatiebepaling wordt niet ondersteund door deze browser.');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLat(pos.coords.latitude);
+        setLng(pos.coords.longitude);
+        setMessage('Locatie ingesteld ✓');
+      },
+      (err) => {
+        setMessage(`Locatie ophalen mislukt: ${err.message}`);
+      },
+    );
   }
 
   async function handleAdd(e: React.FormEvent) {
