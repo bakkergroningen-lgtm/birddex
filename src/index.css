@@ -1,0 +1,136 @@
+/* src/index.css */
+
+@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:wght@400;600;700;800&display=swap');
+
+:root {
+  --color-primary: #06A77D;
+  --color-primary-dark: #047d5d;
+  --color-secondary: #6969B3;
+  --color-secondary-dark: #4e4e86;
+  --color-accent: #FCD0A1;
+  --color-accent-dark: #bd9c78;
+  --color-dark: #0A210F;
+  --color-light: #ACD2ED;
+  --color-light-dark: #819db1;
+  --color-bg: #F7FBFA;
+  --color-white: #ffffff;
+  --color-danger: #e15b5b;
+  --color-danger-dark: #b34444;
+
+  --radius: 16px;
+  --radius-lg: 24px;
+  --font-heading: 'Baloo 2', sans-serif;
+  --font-body: 'Nunito', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-dark);
+  font-family: var(--font-body);
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-heading);
+  font-weight: 800;
+  margin: 0 0 8px 0;
+}
+
+/* --- Knoppen: dikke afgeronde vorm met "3D" schaduwrand onderaan --- */
+.btn {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 16px;
+  border: none;
+  border-radius: var(--radius);
+  padding: 14px 20px;
+  cursor: pointer;
+  transition: transform 0.05s ease, box-shadow 0.05s ease;
+  box-shadow: 0 4px 0 var(--btn-shadow, var(--color-primary-dark));
+  background: var(--btn-bg, var(--color-primary));
+  color: var(--btn-color, white);
+}
+.btn:active {
+  transform: translateY(4px);
+  box-shadow: 0 0 0 var(--btn-shadow, var(--color-primary-dark));
+}
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  --btn-bg: var(--color-primary);
+  --btn-shadow: var(--color-primary-dark);
+  --btn-color: white;
+}
+.btn-secondary {
+  --btn-bg: var(--color-secondary);
+  --btn-shadow: var(--color-secondary-dark);
+  --btn-color: white;
+}
+.btn-accent {
+  --btn-bg: var(--color-accent);
+  --btn-shadow: var(--color-accent-dark);
+  --btn-color: var(--color-dark);
+}
+.btn-danger {
+  --btn-bg: var(--color-danger);
+  --btn-shadow: var(--color-danger-dark);
+  --btn-color: white;
+}
+.btn-outline {
+  --btn-bg: white;
+  --btn-shadow: #d8d8d8;
+  --btn-color: var(--color-dark);
+  border: 2px solid #e2e2e2;
+}
+.btn-sm {
+  padding: 8px 14px;
+  font-size: 14px;
+  box-shadow: 0 3px 0 var(--btn-shadow, var(--color-primary-dark));
+}
+
+/* --- Kaarten --- */
+.card {
+  background: white;
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  box-shadow: 0 2px 8px rgba(10, 33, 15, 0.08);
+  border: 2px solid #eef2f1;
+}
+
+/* --- Inputs --- */
+.input, select.input {
+  font-family: var(--font-body);
+  font-size: 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  border: 2px solid #e2e2e2;
+  width: 100%;
+  background: white;
+  color: var(--color-dark);
+}
+.input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+/* --- Badges/pills (voor zeldzaamheid etc.) --- */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: var(--font-heading);
+}
+.pill-algemeen { background: #d6f5ea; color: var(--color-primary-dark); }
+.pill-schaars { background: var(--color-accent); color: #7a5a2e; }
+.pill-zeldzaam { background: #fbdcdc; color: var(--color-danger-dark); }
