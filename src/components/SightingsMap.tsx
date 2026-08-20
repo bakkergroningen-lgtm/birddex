@@ -14,9 +14,18 @@ const RARITY_COLORS: Record<string, string> = {
 };
 const DEFAULT_COLOR = '#7f8c8d';
 
+const RECENT_COLOR = { r: 105, g: 105, b: 179 };
+const OLD_COLOR = { r: 154, g: 165, b: 162 };
+function recencyColor(t: number): string {
+  const clamped = Math.max(0, Math.min(1, t));
+  const r = Math.round(OLD_COLOR.r + (RECENT_COLOR.r - OLD_COLOR.r) * clamped);
+  const g = Math.round(OLD_COLOR.g + (RECENT_COLOR.g - OLD_COLOR.g) * clamped);
+  const b = Math.round(OLD_COLOR.b + (RECENT_COLOR.b - OLD_COLOR.b) * clamped);
+  return `rgb(${r},${g},${b})`;
+}
+
 const iconCache = new Map<string, L.DivIcon>();
-function getIconForRarity(rarity: string | null): L.DivIcon {
-  const color = (rarity && RARITY_COLORS[rarity]) || DEFAULT_COLOR;
+function getIconForColor(color: string): L.DivIcon {
   if (iconCache.has(color)) return iconCache.get(color)!;
 
   const icon = L.divIcon({
@@ -53,7 +62,29 @@ interface Sighting {
 
 const ALL_RARITIES: Zeldzaamheid[] = ['algemeen', 'vrij schaars', 'zeldzaam'];
 
-// Haalt "YYYY-MM-DD" uit een obs_date die soms ook een tijd bevat (bijv. "2026-08-18 07:30")
+type Periode = '2dagen' | '1week' | '1maand' | '3maanden' | '1jaar' | 'alles';
+const PERIODE_LABELS: Record<Periode, string> = {
+  '2dagen': 'Laatste 2 dagen',
+  '1week': 'Laatste week',
+  '1maand': 'Laatste maand',
+  '3maanden': 'Laatste 3 maanden',
+  '1jaar': 'Laatste jaar',
+  alles: 'Alles',
+};
+
+function periodeToStartDate(periode: Periode): string | null {
+  const now = new Date();
+  switch (periode) {
+    case '2dagen': now.setDate(now.getDate() - 2); break;
+    case '1week': now.setDate(now.getDate() - 7); break;
+    case '1maand': now.setMonth(now.getMonth() - 1); break;
+    case '3maanden': now.setMonth(now.getMonth() - 3); break;
+    case '1jaar': now.setFullYear(now.getFullYear() - 1); break;
+    case 'alles': return null;
+  }
+  return now.toISOString().slice(0, 10);
+}
+
 function dayOf(obsDate: string): string {
   return obsDate.slice(0, 10);
 }
@@ -62,18 +93,30 @@ export default function SightingsMap() {
   const [sightings, setSightings] = useState<Sighting[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeRarities, setActiveRarities] = useState<Set<string>>(new Set(ALL_RARITIES));
-  const [selectedDay, setSelectedDay] = useState<string>('alle');
+  const [periode, setPeriode] = useState<Periode>('2dagen');
   const [searchParams, setSearchParams] = useSearchParams();
 
   const speciesFilter = searchParams.get('species');
+  const isSpeciesMode = !!speciesFilter;
 
   useEffect(() => {
     async function fetchSightings() {
-      const { data, error } = await supabase
+      setLoading(true);
+
+      let query = supabase
         .from('sightings')
         .select('id, lat, lng, obs_date, species_id, species(naam, wetenschappelijke_naam, zeldzaamheid)')
         .order('obs_date', { ascending: false })
-        .limit(1000);
+        .limit(5000);
+
+      if (isSpeciesMode) {
+        query = query.eq('species_id', speciesFilter);
+      } else {
+        const startDate = periodeToStartDate(periode);
+        if (startDate) query = query.gte('obs_date', startDate);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Fout bij ophalen sightings:', error.message);
@@ -84,7 +127,7 @@ export default function SightingsMap() {
     }
 
     fetchSightings();
-  }, []);
+  }, [periode, speciesFilter, isSpeciesMode]);
 
   function toggleRarity(rarity: string) {
     setActiveRarities((prev) => {
@@ -100,34 +143,37 @@ export default function SightingsMap() {
     setSearchParams(searchParams);
   }
 
-  // Unieke dagen uit de opgehaalde sightings, meest recent eerst
-  const availableDays = useMemo(() => {
-    const days = new Set(sightings.map((s) => dayOf(s.obs_date)));
-    return Array.from(days).sort((a, b) => b.localeCompare(a));
-  }, [sightings]);
-
   const filteredSightings = useMemo(() => {
-    return sightings.filter((s) => {
-      if (!activeRarities.has(s.species?.zeldzaamheid ?? '')) return false;
-      if (speciesFilter && s.species_id !== speciesFilter) return false;
-      if (selectedDay !== 'alle' && dayOf(s.obs_date) !== selectedDay) return false;
-      return true;
-    });
-  }, [sightings, activeRarities, speciesFilter, selectedDay]);
+    if (isSpeciesMode) return sightings;
+    return sightings.filter((s) => activeRarities.has(s.species?.zeldzaamheid ?? ''));
+  }, [sightings, activeRarities, isSpeciesMode]);
+
+  const dateRangeMs = useMemo(() => {
+    if (!isSpeciesMode || filteredSightings.length === 0) return null;
+    const times = filteredSightings.map((s) => new Date(dayOf(s.obs_date)).getTime());
+    return { min: Math.min(...times), max: Math.max(...times) };
+  }, [filteredSightings, isSpeciesMode]);
+
+  function iconFor(s: Sighting): L.DivIcon {
+    if (isSpeciesMode && dateRangeMs) {
+      const t = new Date(dayOf(s.obs_date)).getTime();
+      const span = dateRangeMs.max - dateRangeMs.min;
+      const factor = span > 0 ? (t - dateRangeMs.min) / span : 1;
+      return getIconForColor(recencyColor(factor));
+    }
+    const color = (s.species?.zeldzaamheid && RARITY_COLORS[s.species.zeldzaamheid]) || DEFAULT_COLOR;
+    return getIconForColor(color);
+  }
 
   const filteredSpeciesName = speciesFilter
     ? sightings.find((s) => s.species_id === speciesFilter)?.species?.naam
     : null;
 
-  function formatDay(day: string): string {
-    return new Date(day).toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short' });
-  }
-
   if (loading) return <p style={{ padding: 20 }}>Kaart wordt geladen...</p>;
 
   return (
     <div style={{ position: 'relative' }}>
-      {speciesFilter && (
+      {isSpeciesMode && (
         <div
           style={{
             position: 'absolute',
@@ -148,7 +194,7 @@ export default function SightingsMap() {
             boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
           }}
         >
-          🔍 {filteredSpeciesName ?? 'Gefilterd op soort'}
+          🔍 {filteredSpeciesName ?? 'Gefilterd op soort'} — volledige geschiedenis
           <button
             onClick={clearSpeciesFilter}
             style={{
@@ -168,7 +214,6 @@ export default function SightingsMap() {
         </div>
       )}
 
-      {/* Filters rechtsboven */}
       <div
         style={{
           position: 'absolute',
@@ -187,44 +232,57 @@ export default function SightingsMap() {
           overflowY: 'auto',
         }}
       >
-        <div>
-          <strong style={{ fontSize: 13, fontFamily: 'var(--font-heading)' }}>Zeldzaamheid</strong>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
-            {ALL_RARITIES.map((rarity) => (
-              <label key={rarity} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-                <input type="checkbox" checked={activeRarities.has(rarity)} onChange={() => toggleRarity(rarity)} />
-                <span
-                  style={{
-                    display: 'inline-block',
-                    width: 10,
-                    height: 10,
-                    borderRadius: '50%',
-                    background: RARITY_COLORS[rarity],
-                  }}
-                />
-                {rarity}
-              </label>
-            ))}
-          </div>
-        </div>
+        {!isSpeciesMode && (
+          <>
+            <div>
+              <strong style={{ fontSize: 13, fontFamily: 'var(--font-heading)' }}>Periode</strong>
+              <select
+                className="input"
+                value={periode}
+                onChange={(e) => setPeriode(e.target.value as Periode)}
+                style={{ marginTop: 6, fontSize: 13, padding: '6px 8px' }}
+              >
+                {(Object.keys(PERIODE_LABELS) as Periode[]).map((p) => (
+                  <option key={p} value={p}>{PERIODE_LABELS[p]}</option>
+                ))}
+              </select>
+            </div>
 
-        <div>
-          <strong style={{ fontSize: 13, fontFamily: 'var(--font-heading)' }}>Dag</strong>
-          <select
-            className="input"
-            value={selectedDay}
-            onChange={(e) => setSelectedDay(e.target.value)}
-            style={{ marginTop: 6, fontSize: 13, padding: '6px 8px' }}
-          >
-            <option value="alle">Alle dagen</option>
-            {availableDays.map((day) => (
-              <option key={day} value={day}>{formatDay(day)}</option>
-            ))}
-          </select>
-        </div>
+            <div>
+              <strong style={{ fontSize: 13, fontFamily: 'var(--font-heading)' }}>Zeldzaamheid</strong>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+                {ALL_RARITIES.map((rarity) => (
+                  <label key={rarity} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                    <input type="checkbox" checked={activeRarities.has(rarity)} onChange={() => toggleRarity(rarity)} />
+                    <span
+                      style={{
+                        display: 'inline-block', width: 10, height: 10, borderRadius: '50%',
+                        background: RARITY_COLORS[rarity],
+                      }}
+                    />
+                    {rarity}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {isSpeciesMode && (
+          <div>
+            <strong style={{ fontSize: 13, fontFamily: 'var(--font-heading)' }}>Recentheid</strong>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+              <div style={{ width: 80, height: 10, borderRadius: 5, background: `linear-gradient(90deg, ${recencyColor(0)}, ${recencyColor(1)})` }} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#9aa5a2', marginTop: 2 }}>
+              <span>oud</span>
+              <span>nieuw</span>
+            </div>
+          </div>
+        )}
 
         <div style={{ fontSize: 11, color: '#9aa5a2' }}>
-          {filteredSightings.length} van {sightings.length} waarnemingen
+          {filteredSightings.length} waarneming{filteredSightings.length !== 1 ? 'en' : ''}
         </div>
       </div>
 
@@ -234,7 +292,7 @@ export default function SightingsMap() {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>-bijdragers &copy; <a href="https://carto.com/attributions">CARTO</a>'
         />
         {filteredSightings.map((s) => (
-          <Marker key={s.id} position={[s.lat, s.lng]} icon={getIconForRarity(s.species?.zeldzaamheid ?? null)}>
+          <Marker key={s.id} position={[s.lat, s.lng]} icon={iconFor(s)}>
             <Popup>
               <strong>{s.species?.naam ?? 'Onbekende soort'}</strong>
               <br />
